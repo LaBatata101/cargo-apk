@@ -127,6 +127,9 @@ pub struct Activity {
     #[serde(rename(serialize = "@android:alwaysRetainTaskState"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub always_retain_task_state: Option<bool>,
+    #[serde(rename(serialize = "@android:windowSoftInputMode"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_soft_input_mode: Option<String>,
 
     #[serde(rename(serialize = "meta-data"))]
     #[serde(default)]
@@ -148,6 +151,7 @@ impl Default for Activity {
             exported: None,
             resizeable_activity: None,
             always_retain_task_state: None,
+            window_soft_input_mode: None,
             meta_data: Default::default(),
             intent_filter: Default::default(),
         }
