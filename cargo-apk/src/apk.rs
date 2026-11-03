@@ -288,10 +288,16 @@ impl<'a> ApkBuilder<'a> {
                         path: crate_path.join(&msk.path),
                         password: msk.keystore_password.clone(),
                     }
-                } else if is_debug_profile {
-                    self.ndk.debug_key()?
                 } else {
-                    return Err(Error::MissingReleaseKey(profile_name.to_owned()));
+                    // Installable, but not publishable, e.g. to try a release build on a device.
+                    if !is_debug_profile {
+                        eprintln!(
+                            "Warning: no keystore is configured for the `{profile_name}` profile, signing with the \
+                            debug keystore. Configure one with `[package.metadata.android.signing.{profile_name}]` \
+                            or `{keystore_env}` to publish the APK."
+                        );
+                    }
+                    self.ndk.debug_key()?
                 }
             }
         };
