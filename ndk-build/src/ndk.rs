@@ -18,10 +18,60 @@ pub struct Ndk {
     platforms: Vec<u32>,
 }
 
+/// The path in the environment variable `name`, unless it's unset or empty, e.g. `ANDROID_NDK_HOME=` in a shell profile.
+fn env_path(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|path| !path.is_empty())
+}
+
+/// Where Android Studio installs the SDK by default, if it's there.
+fn default_sdk_path() -> Option<PathBuf> {
+    let path = if cfg!(windows) {
+        dirs::data_local_dir()?.join("Android").join("Sdk")
+    } else if cfg!(target_os = "macos") {
+        dirs::home_dir()?
+            .join("Library")
+            .join("Android")
+            .join("sdk")
+    } else {
+        dirs::home_dir()?.join("Android").join("Sdk")
+    };
+    path.is_dir().then_some(path)
+}
+
+/// The NDK installed in the SDK at `sdk_path`, the latest version in `ndk/<version>` where the SDK Manager installs
+/// them side by side, or the legacy `ndk-bundle`.
+fn sdk_ndk_path(sdk_path: &Path) -> Option<PathBuf> {
+    let latest = std::fs::read_dir(sdk_path.join("ndk"))
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        // A partial installation has no `source.properties`.
+        .filter(|path| path.join("source.properties").is_file())
+        .filter_map(|path| {
+            let version = version_key(path.file_name()?.to_str()?);
+            Some((version, path))
+        })
+        .max_by(|(a, _), (b, _)| a.cmp(b))
+        .map(|(_, path)| path);
+    latest.or_else(|| {
+        let bundle = sdk_path.join("ndk-bundle");
+        bundle.is_dir().then_some(bundle)
+    })
+}
+
+/// The numbers of the version `name`, e.g. `[30, 0, 15729638]` for `30.0.15729638`, to compare versions by them
+/// rather than as text, where `9.0` would be greater than `30.0`.
+fn version_key(name: &str) -> Vec<u64> {
+    name.split(|c: char| !c.is_ascii_digit())
+        .filter_map(|part| part.parse().ok())
+        .collect()
+}
+
 impl Ndk {
     pub fn from_env() -> Result<Self, NdkError> {
         let sdk_path = {
-            let sdk_path = std::env::var("ANDROID_SDK_ROOT").ok();
+            let sdk_path = env_path("ANDROID_SDK_ROOT");
             if sdk_path.is_some() {
                 eprintln!(
                     "Warning: Environment variable ANDROID_SDK_ROOT is deprecated \
@@ -30,11 +80,11 @@ impl Ndk {
                 );
             }
 
-            PathBuf::from(
-                sdk_path
-                    .or_else(|| std::env::var("ANDROID_HOME").ok())
-                    .ok_or(NdkError::SdkNotFound)?,
-            )
+            sdk_path
+                .or_else(|| env_path("ANDROID_HOME"))
+                .map(PathBuf::from)
+                .or_else(default_sdk_path)
+                .ok_or(NdkError::SdkNotFound)?
         };
 
         let user_home = {
@@ -61,17 +111,14 @@ impl Ndk {
         };
 
         let ndk_path = {
-            let ndk_path = std::env::var("ANDROID_NDK_ROOT")
-                .ok()
-                .or_else(|| std::env::var("ANDROID_NDK_PATH").ok())
-                .or_else(|| std::env::var("ANDROID_NDK_HOME").ok())
-                .or_else(|| std::env::var("NDK_HOME").ok());
+            let ndk_path = env_path("ANDROID_NDK_ROOT")
+                .or_else(|| env_path("ANDROID_NDK_PATH"))
+                .or_else(|| env_path("ANDROID_NDK_HOME"))
+                .or_else(|| env_path("NDK_HOME"));
 
-            // default ndk installation path
-            if ndk_path.is_none() && sdk_path.join("ndk-bundle").exists() {
-                sdk_path.join("ndk-bundle")
-            } else {
-                PathBuf::from(ndk_path.ok_or(NdkError::NdkNotFound)?)
+            match ndk_path {
+                Some(ndk_path) => PathBuf::from(ndk_path),
+                None => sdk_ndk_path(&sdk_path).ok_or(NdkError::NdkNotFound)?,
             }
         };
 
@@ -82,7 +129,7 @@ impl Ndk {
             .filter(|path| path.path().is_dir())
             .filter_map(|path| path.file_name().into_string().ok())
             .filter(|name| name.chars().next().unwrap().is_ascii_digit())
-            .max()
+            .max_by_key(|name| version_key(name))
             .ok_or(NdkError::BuildToolsNotFound)?;
 
         let build_tag = std::fs::read_to_string(ndk_path.join("source.properties"))
@@ -504,5 +551,26 @@ mod tests {
         let ndk = Ndk::from_env().unwrap();
         assert_eq!(ndk.build_tools_version(), "29.0.2");
         assert_eq!(ndk.platforms(), &[29, 28]);
+    }
+
+    #[test]
+    fn versions_compare_by_their_numbers() {
+        assert!(version_key("30.0.15729638") > version_key("9.0.0"));
+        assert!(version_key("30.0.15729638") > version_key("29.0.14206865"));
+    }
+
+    #[test]
+    fn finds_the_latest_ndk_of_the_sdk() {
+        let sdk = std::env::temp_dir().join(format!("ndk-build-test-sdk-{}", std::process::id()));
+        for version in ["9.0.1", "30.0.2", "28.2.3"] {
+            let ndk = sdk.join("ndk").join(version);
+            std::fs::create_dir_all(&ndk).unwrap();
+            std::fs::write(ndk.join("source.properties"), "").unwrap();
+        }
+        // Being installed, without `source.properties`.
+        std::fs::create_dir_all(sdk.join("ndk").join("31.0.0")).unwrap();
+        let found = sdk_ndk_path(&sdk);
+        std::fs::remove_dir_all(&sdk).unwrap();
+        assert_eq!(found, Some(sdk.join("ndk").join("30.0.2")));
     }
 }

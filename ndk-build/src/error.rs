@@ -9,13 +9,13 @@ pub enum NdkError {
     #[error(
         "Android SDK is not found. \
     Please set the path to the Android SDK with the $ANDROID_HOME \
-    environment variable."
+    environment variable, or install it where Android Studio does."
     )]
     SdkNotFound,
     #[error(
         "Android NDK is not found. \
-        Please set the path to the Android NDK with $ANDROID_NDK_ROOT \
-        environment variable."
+        Please install it with the SDK Manager, or set the path to the \
+        Android NDK with the $ANDROID_NDK_ROOT environment variable."
     )]
     NdkNotFound,
     #[error("GNU toolchain binary `{gnu_bin}` nor LLVM toolchain binary `{llvm_bin}` found in `{toolchain_path:?}`.")]

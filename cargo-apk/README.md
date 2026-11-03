@@ -27,6 +27,14 @@ From locally downloaded or cloned source:
 $ cargo install --path cargo-apk/
 ```
 
+## Android SDK and NDK
+
+`cargo-apk` uses the Android SDK at `$ANDROID_HOME`, or where Android Studio installs it by default when it's unset:
+`~/Android/Sdk` on Linux, `~/Library/Android/sdk` on macOS, and `%LOCALAPPDATA%\Android\Sdk` on Windows.
+
+It uses the NDK at `$ANDROID_NDK_ROOT` (or `$ANDROID_NDK_PATH`, `$ANDROID_NDK_HOME`, `$NDK_HOME`), or otherwise the
+latest NDK installed in the SDK by the SDK Manager, in `ndk/<version>`, or the legacy `ndk-bundle`.
+
 ## Crate configuration
 
 Android and thus `cargo-apk` require the [Cargo Target] to be a Shared Library, corresponding to Rust's `cdylib` `crate-type`.  For the sole library in a crate, configure this as follows in `Cargo.toml`:
