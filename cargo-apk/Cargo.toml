@@ -2,23 +2,22 @@
 name = "cargo-apk"
 version = "0.10.0"
 authors = ["The Rust Windowing contributors"]
-edition = "2018"
+edition.workspace = true
 description = "Helps cargo build APKs"
 license = "MIT OR Apache-2.0"
 keywords = ["android", "ndk", "apk"]
 documentation = "https://docs.rs/cargo-apk"
 homepage = "https://github.com/rust-mobile/cargo-apk"
 repository = "https://github.com/rust-mobile/cargo-apk"
-rust-version = "1.70"
 
 [dependencies]
-anyhow = "1.0.57"
-cargo-subcommand = "0.12"
-clap = { version = "4", features = ["derive"] }
-dunce = "1"
-env_logger = "0.10"
-log = "0.4"
+anyhow.workspace = true
+cargo-subcommand.workspace = true
+clap.workspace = true
+dunce.workspace = true
+env_logger.workspace = true
+log.workspace = true
 ndk-build = { path = "../ndk-build", version = "0.10.0" }
-serde = "1"
-thiserror = "1"
-toml = "0.5"
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
